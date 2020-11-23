@@ -1,42 +1,44 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use sp_std::prelude::*;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
-use sp_runtime::{
-	ApplyExtrinsicResult, generic, create_runtime_str, impl_opaque_keys, MultiSignature,
-	transaction_validity::{TransactionValidity, TransactionSource},
-};
-use sp_runtime::traits::{
-	BlakeTwo256, Block as BlockT, IdentityLookup, Verify, IdentifyAccount, NumberFor, Saturating,
-};
+use grandpa::fg_primitives;
+use grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
-use grandpa::fg_primitives;
-use sp_version::RuntimeVersion;
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_runtime::traits::{
+	BlakeTwo256, Block as BlockT, IdentifyAccount, IdentityLookup, NumberFor, Saturating, Verify,
+};
+use sp_runtime::{
+	create_runtime_str, generic, impl_opaque_keys,
+	transaction_validity::{TransactionSource, TransactionValidity},
+	ApplyExtrinsicResult, MultiSignature,
+};
+use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
+use sp_version::RuntimeVersion;
 
 // A few exports that help ease life for downstream crates.
-#[cfg(any(feature = "std", test))]
-pub use sp_runtime::BuildStorage;
-pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
-pub use sp_runtime::{Permill, Perbill};
 pub use frame_support::{
-	construct_runtime, parameter_types, StorageValue,
+	construct_runtime, parameter_types,
 	traits::{KeyOwnerProofSystem, Randomness},
 	weights::{
-		Weight, IdentityFee,
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
+		IdentityFee, Weight,
 	},
+	StorageValue,
 };
+#[cfg(any(feature = "std", test))]
+pub use sp_runtime::BuildStorage;
+pub use sp_runtime::{Perbill, Permill};
+pub use timestamp::Call as TimestampCall;
 
 /// Import the template pallet.
 pub use template;
@@ -95,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("node-template"),
 	impl_name: create_runtime_str!("node-template"),
 	authoring_version: 1,
-	spec_version: 1,
+	spec_version: 2,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -262,6 +264,24 @@ impl template::Trait for Runtime {
 	type Event = Event;
 }
 
+// // Define the types required by the Scheduler pallet.
+// parameter_types! {
+// 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) * MaximumBlockWeight::get();
+// 	pub const MaxScheduledPerBlock: u32 = 50;
+// }
+
+// // Configure the runtime's implementation of the Scheduler pallet.
+// impl pallet_scheduler::Trait for Runtime {
+// 	type Event = Event;
+// 	type Origin = Origin;
+// 	type PalletsOrigin = OriginCaller;
+// 	type Call = Call;
+// 	type MaximumWeight = MaximumSchedulerWeight;
+// 	type ScheduleOrigin = frame_system::EnsureRoot<AccountId>;
+// 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
+// 	type WeightInfo = ();
+// }
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub enum Runtime where
@@ -279,6 +299,7 @@ construct_runtime!(
 		Sudo: sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the template pallet in the runtime.
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
+		//Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
 	}
 );
 
@@ -300,14 +321,15 @@ pub type SignedExtra = (
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
-	transaction_payment::ChargeTransactionPayment<Runtime>
+	transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive =
+	frame_executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
